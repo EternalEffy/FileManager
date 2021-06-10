@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">FileManager</string>
+    <string name="rename">Переименовать</string>
+    <string name="remove">Удалить</string>
+    <string name="info">Свойсва</string>
+    <string name="back">Назад</string>
+    <string name="default_apps">Приложения по умолчанию</string>
+</resources>
