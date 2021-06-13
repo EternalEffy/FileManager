@@ -4,20 +4,16 @@ import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
-import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.StatFs;
-import android.provider.Settings;
 import android.text.InputFilter;
 import android.util.Log;
 import android.view.ContextMenu;
@@ -31,7 +27,6 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.webkit.MimeTypeMap;
 import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.GridView;
@@ -39,26 +34,22 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ProgressBar;
-import android.widget.RelativeLayout;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import org.w3c.dom.Text;
-
 import java.io.File;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
 public class MainActivity extends Activity {
-    private Button display,displaySize,settings;
+    private Button display,displaySize,settings,search;
     private SharedPreferences app_setings;
     private ListView fileListView;
     private Switch themeSwitch,commercial;
-    private TextView author,defaultApps;
+    private TextView author;
     private LinearLayout settingsPage,mainPage;
     private GridView gridListView;
     private List<File> fileList = new ArrayList<>();
@@ -83,6 +74,9 @@ public class MainActivity extends Activity {
 
         ImageView logo = findViewById(R.id.logo);
         TextView app_name = findViewById(R.id.appName);
+        if(color){
+            app_name.setTextColor(Color.WHITE);
+        }else app_name.setTextColor(Color.BLACK);
 
         Animation animation = AnimationUtils.loadAnimation(this, R.anim.hide_anim);
         animation.setAnimationListener(new Animation.AnimationListener() {
@@ -239,6 +233,7 @@ public class MainActivity extends Activity {
         TextView no_objects = setTextView(R.id.no_objects, "Пусто");
         int image;
         settings = setButton(R.id.settings,R.mipmap.settings);
+        search = setButton(R.id.search,R.mipmap.search);
         settingsPage = findViewById(R.id.settingsPage);
         mainPage = findViewById(R.id.main_Page);
         settingsPage.setVisibility(View.GONE);
@@ -280,7 +275,7 @@ public class MainActivity extends Activity {
             icon = R.mipmap.big;
         }else icon = R.mipmap.standart;
         displaySize = setButton(R.id.displaySize,icon);
-        TextView pathText = setTextView(R.id.path, path);
+        TextView pathText = setTextView(R.id.path,(path.replace(root.getPath(),"Внутреннее хранилище")));
         setSDcardData();
 
     }
@@ -352,7 +347,8 @@ public class MainActivity extends Activity {
     @TargetApi(Build.VERSION_CODES.Q)
     public void openFile(File file){
         Intent intent = new Intent();
-        intent.setAction(android.content.Intent.ACTION_VIEW);
+        intent.setAction(Intent.ACTION_VIEW);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         Uri uri = Uri.parse("file://" + file.getAbsolutePath());
         String type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(MimeTypeMap.getFileExtensionFromUrl(uri.toString()));
         intent.setDataAndType(uri, type == null ? "*/*" : type);
@@ -418,23 +414,56 @@ public class MainActivity extends Activity {
     @SuppressLint("ClickableViewAccessibility")
     public void setOnClick(){
 
-        commercial.setOnClickListener(new View.OnClickListener() {
+        search.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                ad = !ad;
-                Log.d("cccc",ad+"");
-                saveAppSetting();
+                LayoutInflater li = LayoutInflater.from(MainActivity.this);
+                View searchWindow = li.inflate(R.layout.search,null);
+                AlertDialog.Builder searchBuilder = new AlertDialog.Builder(MainActivity.this);
+                searchBuilder.setView(searchWindow);
+                final EditText fileSearch = (EditText) searchWindow.findViewById(R.id.file_name_search);
+                fileSearch.setHint("введите имя файла");
+                String title = "Поиск";
+                String ok = "Ок";
+                String cancel = "Отмена";
+
+                searchBuilder
+                        .setTitle(title)
+                        .setCancelable(false)
+                        .setPositiveButton(ok,
+                                (dialog, id) -> {
+                                    if (searchFile(fileSearch.getText().toString(),root)!=null) {
+                                        File searchFile = searchFile(fileSearch.getText().toString(),root);
+                                        path = searchFile.getParent();
+                                        List<File> list = new ArrayList<>();
+                                        list.add(searchFile);
+                                        loadPage(path);
+                                        if (flag) {
+                                            setFileList(R.id.listFiles, list);
+                                        } else
+                                            setGridList(R.id.gridFiles, list);
+                                    }else Toast.makeText(MainActivity.this,"Файл не найден",Toast.LENGTH_SHORT).show();
+                                })
+                        .setNegativeButton(cancel,
+                                (dialog, id) -> dialog.cancel());
+
+                AlertDialog alertDialog = searchBuilder.create();
+
+                alertDialog.show();
             }
         });
 
-        themeSwitch.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                color = !color;
-                setThemeColor(color);
-                Log.d("theme_switch",color+"");
-                saveAppSetting();
-            }
+        commercial.setOnClickListener(v -> {
+            ad = !ad;
+            Log.d("cccc",ad+"");
+            saveAppSetting();
+        });
+
+        themeSwitch.setOnClickListener(v -> {
+            color = !color;
+            setThemeColor(color);
+            Log.d("theme_switch",color+"");
+            saveAppSetting();
         });
 
 
@@ -482,6 +511,24 @@ public class MainActivity extends Activity {
 
     }
 
+    public File searchFile(String name,File file) {
+        File result = null;
+        File[] dirlist  = file.listFiles();
+
+        if (dirlist != null) {
+            for(int i = 0; i < dirlist.length; i++) {
+                if(dirlist[i].isDirectory()) {
+                    result = searchFile(name, dirlist[i]);
+                    if (result!=null)
+                        break;
+                } else if(dirlist[i].getName().startsWith(name)) {
+                    return dirlist[i];
+                }
+            }
+        }
+        return result;
+    }
+
     private void setThemeColor(boolean checked){
         LinearLayout all = findViewById(R.id.all);
         TextView procent = findViewById(R.id.procent);
@@ -491,7 +538,7 @@ public class MainActivity extends Activity {
         TextView theme = findViewById(R.id.theme);
         TextView commercial = findViewById(R.id.commercial);
         if (checked){
-            all.setBackgroundColor(Color.DKGRAY);
+            all.setBackgroundColor(Color.BLACK);
             procent.setTextColor(Color.WHITE);
             info.setTextColor(Color.WHITE);
             path.setTextColor(Color.BLACK);
