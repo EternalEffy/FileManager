@@ -400,7 +400,7 @@ public class MainActivity extends Activity {
             if (!path.equals(root.getAbsolutePath())) {
                 path = new File(path).getParent();
                 loadPage(path);
-                fileListView.smoothScrollToPositionFromTop(selected, 0);
+                fileListView.smoothScrollToPositionFromTop(selected, 0,0);
             } else {
                 super.onBackPressed();
             }
